@@ -22,7 +22,10 @@ type RVFC = (
   cb: (now: number, metadata: VideoFrameMetadata) => void,
 ) => number;
 
-const DRIFT_CORRECT_THRESHOLD = 0.04; // seconds; re-align B if it slips past this
+const SOFT_SYNC_THRESHOLD = 0.025; // seconds; ignore tiny drift while playing
+const HARD_SYNC_THRESHOLD = 0.18; // seconds; seek only when drift is clearly visible
+const MAX_RATE_NUDGE = 0.06; // keep playback-rate correction subtle
+const UI_UPDATE_INTERVAL_MS = 100;
 
 export interface SyncedPlayers {
   videoARef: React.RefObject<HTMLVideoElement>;
@@ -66,15 +69,20 @@ export function useSyncedPlayers(): SyncedPlayers {
 
   const markARef = useRef(0);
   const markBRef = useRef(0);
+  const playbackRateRef = useRef(1);
+  const lastUiUpdateRef = useRef(0);
   markARef.current = markA;
   markBRef.current = markB;
+  playbackRateRef.current = playbackRate;
 
   const supportsRVFC =
     typeof HTMLVideoElement !== "undefined" &&
     "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
   // Position B relative to A using the current marks, clamped to B's range.
-  const syncB = useCallback(() => {
+  // During playback, avoid frequent currentTime writes because they force seeks
+  // and make mobile videos stutter. Small drift is corrected by nudging B's rate.
+  const syncB = useCallback((mode: "soft" | "hard" = "soft") => {
     const a = videoARef.current;
     const b = videoBRef.current;
     if (!a || !b) return;
@@ -83,9 +91,23 @@ export function useSyncedPlayers(): SyncedPlayers {
       0,
       isFinite(b.duration) ? b.duration : a.currentTime,
     );
-    if (Math.abs(b.currentTime - target) > DRIFT_CORRECT_THRESHOLD) {
+    const drift = b.currentTime - target;
+    const driftAbs = Math.abs(drift);
+    const baseRate = playbackRateRef.current;
+
+    if (mode === "hard" || driftAbs > HARD_SYNC_THRESHOLD) {
       b.currentTime = target;
+      b.playbackRate = baseRate;
+      return;
     }
+
+    if (driftAbs <= SOFT_SYNC_THRESHOLD) {
+      b.playbackRate = baseRate;
+      return;
+    }
+
+    const nudge = clamp(drift * 0.6, -MAX_RATE_NUDGE, MAX_RATE_NUDGE);
+    b.playbackRate = clamp(baseRate - nudge, 0.0625, 16);
   }, []);
 
   // Mark both videos ready once metadata (duration) is loaded for each.
@@ -119,11 +141,16 @@ export function useSyncedPlayers(): SyncedPlayers {
     let handle = 0;
     let stopped = false;
 
-    const onTick = (mediaTime?: number) => {
+    const onTick = (now: number, mediaTime?: number) => {
       if (stopped) return;
-      setMasterTime(mediaTime ?? a.currentTime);
+
+      if (now - lastUiUpdateRef.current >= UI_UPDATE_INTERVAL_MS || a.ended) {
+        lastUiUpdateRef.current = now;
+        setMasterTime(mediaTime ?? a.currentTime);
+      }
       syncB();
       if (a.ended) {
+        videoBRef.current?.pause();
         setPlaying(false);
         return;
       }
@@ -134,9 +161,9 @@ export function useSyncedPlayers(): SyncedPlayers {
       if (supportsRVFC) {
         const rvfc = (a as unknown as { requestVideoFrameCallback: RVFC })
           .requestVideoFrameCallback;
-        handle = rvfc.call(a, (_now, meta) => onTick(meta.mediaTime));
+        handle = rvfc.call(a, (now, meta) => onTick(now, meta.mediaTime));
       } else {
-        handle = requestAnimationFrame(() => onTick());
+        handle = requestAnimationFrame((now) => onTick(now));
       }
     };
     schedule();
@@ -154,7 +181,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (!a || !b) return;
     a.playbackRate = playbackRate;
     b.playbackRate = playbackRate;
-    syncB();
+    syncB("hard");
     void Promise.all([a.play(), b.play()]).then(() => setPlaying(true)).catch(() => {});
   }, [playbackRate, syncB]);
 
@@ -163,6 +190,8 @@ export function useSyncedPlayers(): SyncedPlayers {
     const b = videoBRef.current;
     a?.pause();
     b?.pause();
+    if (a) a.playbackRate = playbackRateRef.current;
+    if (b) b.playbackRate = playbackRateRef.current;
     setPlaying(false);
     if (a) setMasterTime(a.currentTime);
   }, []);
@@ -178,7 +207,7 @@ export function useSyncedPlayers(): SyncedPlayers {
       a.currentTime = clamp(a.currentTime + dt, 0, isFinite(a.duration) ? a.duration : a.currentTime);
       setMasterTime(a.currentTime);
       // give the seek a tick before aligning B
-      requestAnimationFrame(() => syncB());
+      requestAnimationFrame(() => syncB("hard"));
     },
     [fps, pause, syncB],
   );
@@ -189,7 +218,7 @@ export function useSyncedPlayers(): SyncedPlayers {
       if (!a) return;
       a.currentTime = clamp(seconds, 0, isFinite(a.duration) ? a.duration : seconds);
       setMasterTime(a.currentTime);
-      requestAnimationFrame(() => syncB());
+      requestAnimationFrame(() => syncB("hard"));
     },
     [syncB],
   );
