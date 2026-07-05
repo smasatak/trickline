@@ -1,5 +1,5 @@
 const CACHE_NAME = "trickline-poc-v1";
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/icon.svg"];
+const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -39,7 +39,7 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
           return response;
         })
-        .catch(() => caches.match("/index.html"));
+        .catch(() => caches.match("./index.html"));
     }),
   );
 });

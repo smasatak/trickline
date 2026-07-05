@@ -163,6 +163,14 @@ export function CompareSpike() {
         </button>
 
         <label>
+          再生
+          <select value={p.syncMode} onChange={(e) => p.setSyncMode(e.target.value as typeof p.syncMode)}>
+            <option value="stable">安定優先</option>
+            <option value="sync">同期優先</option>
+          </select>
+        </label>
+
+        <label>
           速度
           <select
             value={p.playbackRate}

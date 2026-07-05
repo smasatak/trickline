@@ -22,9 +22,21 @@ type RVFC = (
   cb: (now: number, metadata: VideoFrameMetadata) => void,
 ) => number;
 
-const HARD_SYNC_THRESHOLD = 0.12; // seconds; visible drift, but not every frame
-const HARD_SYNC_INTERVAL_MS = 500;
 const UI_UPDATE_INTERVAL_MS = 100;
+const SYNC_SETTINGS = {
+  stable: {
+    hardSyncThreshold: 0.35,
+    hardSyncIntervalMs: 1200,
+    startupSyncMs: 300,
+  },
+  sync: {
+    hardSyncThreshold: 0.12,
+    hardSyncIntervalMs: 500,
+    startupSyncMs: 700,
+  },
+} as const;
+
+export type SyncMode = keyof typeof SYNC_SETTINGS;
 
 export interface SyncedPlayers {
   videoARef: React.RefObject<HTMLVideoElement>;
@@ -32,6 +44,7 @@ export interface SyncedPlayers {
   ready: boolean;
   playing: boolean;
   playbackRate: number;
+  syncMode: SyncMode;
   fps: number;
   masterTime: number; // video A currentTime, seconds
   videoBTime: number;
@@ -47,6 +60,7 @@ export interface SyncedPlayers {
   seekMaster: (seconds: number) => void;
   seekVideo: (which: "A" | "B", seconds: number) => void;
   setPlaybackRate: (rate: number) => void;
+  setSyncMode: (mode: SyncMode) => void;
   setFps: (fps: number) => void;
   markHere: (which: "A" | "B") => void;
   resetMarks: () => void;
@@ -63,6 +77,7 @@ export function useSyncedPlayers(): SyncedPlayers {
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [playbackRate, setPlaybackRateState] = useState(1);
+  const [syncMode, setSyncModeState] = useState<SyncMode>("stable");
   const [fps, setFpsState] = useState(30);
   const [masterTime, setMasterTime] = useState(0);
   const [videoBTime, setVideoBTime] = useState(0);
@@ -74,12 +89,14 @@ export function useSyncedPlayers(): SyncedPlayers {
   const markARef = useRef(0);
   const markBRef = useRef(0);
   const playbackRateRef = useRef(1);
+  const syncModeRef = useRef<SyncMode>("stable");
   const lastUiUpdateRef = useRef(0);
   const lastHardSyncRef = useRef(0);
   const startupSyncUntilRef = useRef(0);
   markARef.current = markA;
   markBRef.current = markB;
   playbackRateRef.current = playbackRate;
+  syncModeRef.current = syncMode;
 
   const supportsRVFC =
     typeof HTMLVideoElement !== "undefined" &&
@@ -109,6 +126,7 @@ export function useSyncedPlayers(): SyncedPlayers {
 
     const { rawTarget, target, maxB } = targetInfo;
     const baseRate = playbackRateRef.current;
+    const settings = SYNC_SETTINGS[syncModeRef.current];
 
     if (rawTarget <= 0) {
       b.pause();
@@ -147,9 +165,9 @@ export function useSyncedPlayers(): SyncedPlayers {
     const inStartupSync = now < startupSyncUntilRef.current;
     const canSync =
       inStartupSync ||
-      now - lastHardSyncRef.current >= HARD_SYNC_INTERVAL_MS;
+      now - lastHardSyncRef.current >= settings.hardSyncIntervalMs;
 
-    if (canSync && driftAbs > HARD_SYNC_THRESHOLD) {
+    if (canSync && driftAbs > settings.hardSyncThreshold) {
       lastHardSyncRef.current = now;
       b.currentTime = target;
       setVideoBTime(b.currentTime);
@@ -241,10 +259,13 @@ export function useSyncedPlayers(): SyncedPlayers {
     const plays = shouldPlayB ? [a.play(), b.play()] : [a.play()];
     void Promise.all(plays)
       .then(() => {
-        startupSyncUntilRef.current = performance.now() + 700;
+        startupSyncUntilRef.current =
+          performance.now() + SYNC_SETTINGS[syncModeRef.current].startupSyncMs;
         setPlaying(true);
         requestAnimationFrame((now) => syncB("hard", now));
-        window.setTimeout(() => syncB("hard"), 120);
+        if (syncModeRef.current === "sync") {
+          window.setTimeout(() => syncB("hard"), 120);
+        }
       })
       .catch(() => {});
   }, [getBTarget, playbackRate, syncB]);
@@ -306,6 +327,10 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (videoBRef.current) videoBRef.current.playbackRate = rate;
   }, []);
 
+  const setSyncMode = useCallback((mode: SyncMode) => {
+    setSyncModeState(mode);
+  }, []);
+
   const setFps = useCallback((v: number) => setFpsState(v), []);
 
   const markHere = useCallback((which: "A" | "B") => {
@@ -326,6 +351,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     ready,
     playing,
     playbackRate,
+    syncMode,
     fps,
     masterTime,
     videoBTime,
@@ -341,6 +367,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     seekMaster,
     seekVideo,
     setPlaybackRate,
+    setSyncMode,
     setFps,
     markHere,
     resetMarks,
