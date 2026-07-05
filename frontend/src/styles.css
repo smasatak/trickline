@@ -78,7 +78,8 @@ button.primary {
 }
 
 input,
-select {
+select,
+textarea {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--line);
@@ -88,6 +89,22 @@ select {
 }
 
 /* ---- Spike ---- */
+.poc-setup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.poc-setup label,
+.session-note {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .videos {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -105,6 +122,20 @@ select {
 .video-col input[type="file"] {
   width: 100%;
   min-width: 0;
+  font-size: 0.82rem;
+}
+
+.video-meta {
+  display: grid;
+  gap: 2px;
+  min-height: 52px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.video-meta strong {
+  color: var(--text);
   font-size: 0.82rem;
 }
 
@@ -182,11 +213,38 @@ select {
   font-size: 0.85rem;
 }
 
+.session-note {
+  margin-top: 14px;
+}
+
+.session-note textarea {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.4;
+}
+
 .hint {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.6;
   margin-top: 16px;
+}
+
+@media (max-width: 540px) {
+  .app {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .poc-setup {
+    grid-template-columns: 1fr;
+  }
+
+  .mark {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }
 
 /* ---- MVP console ---- */
