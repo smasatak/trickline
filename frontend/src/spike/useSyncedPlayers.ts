@@ -22,9 +22,8 @@ type RVFC = (
   cb: (now: number, metadata: VideoFrameMetadata) => void,
 ) => number;
 
-const SOFT_SYNC_THRESHOLD = 0.025; // seconds; ignore tiny drift while playing
-const HARD_SYNC_THRESHOLD = 0.18; // seconds; seek only when drift is clearly visible
-const MAX_RATE_NUDGE = 0.06; // keep playback-rate correction subtle
+const HARD_SYNC_THRESHOLD = 0.45; // seconds; seek only when drift is clearly visible
+const HARD_SYNC_INTERVAL_MS = 1000;
 const UI_UPDATE_INTERVAL_MS = 100;
 
 export interface SyncedPlayers {
@@ -71,6 +70,7 @@ export function useSyncedPlayers(): SyncedPlayers {
   const markBRef = useRef(0);
   const playbackRateRef = useRef(1);
   const lastUiUpdateRef = useRef(0);
+  const lastHardSyncRef = useRef(0);
   markARef.current = markA;
   markBRef.current = markB;
   playbackRateRef.current = playbackRate;
@@ -79,36 +79,64 @@ export function useSyncedPlayers(): SyncedPlayers {
     typeof HTMLVideoElement !== "undefined" &&
     "requestVideoFrameCallback" in HTMLVideoElement.prototype;
 
-  // Position B relative to A using the current marks, clamped to B's range.
-  // During playback, avoid frequent currentTime writes because they force seeks
-  // and make mobile videos stutter. Small drift is corrected by nudging B's rate.
-  const syncB = useCallback((mode: "soft" | "hard" = "soft") => {
+  const getBTarget = useCallback(() => {
     const a = videoARef.current;
     const b = videoBRef.current;
-    if (!a || !b) return;
-    const target = clamp(
-      a.currentTime - markARef.current + markBRef.current,
-      0,
-      isFinite(b.duration) ? b.duration : a.currentTime,
-    );
-    const drift = b.currentTime - target;
-    const driftAbs = Math.abs(drift);
+    if (!a || !b) return null;
+    const rawTarget = a.currentTime - markARef.current + markBRef.current;
+    const maxB = isFinite(b.duration) ? b.duration : a.currentTime;
+    return {
+      rawTarget,
+      target: clamp(rawTarget, 0, maxB),
+      maxB,
+    };
+  }, []);
+
+  // Position B relative to A using the current marks. While playing, avoid
+  // frequent currentTime writes because mobile Safari often stutters on seeks
+  // and dynamic playbackRate changes.
+  const syncB = useCallback((mode: "playback" | "hard" = "playback", now = performance.now()) => {
+    const a = videoARef.current;
+    const b = videoBRef.current;
+    const targetInfo = getBTarget();
+    if (!a || !b || !targetInfo) return;
+
+    const { rawTarget, target, maxB } = targetInfo;
     const baseRate = playbackRateRef.current;
 
-    if (mode === "hard" || driftAbs > HARD_SYNC_THRESHOLD) {
+    if (rawTarget <= 0) {
+      b.pause();
+      if (Math.abs(b.currentTime) > 0.02) b.currentTime = 0;
+      b.playbackRate = baseRate;
+      return;
+    }
+
+    if (rawTarget >= maxB) {
+      b.pause();
+      if (Math.abs(b.currentTime - maxB) > 0.02) b.currentTime = maxB;
+      b.playbackRate = baseRate;
+      return;
+    }
+
+    if (a.paused) {
+      b.pause();
+    } else if (b.paused) {
       b.currentTime = target;
       b.playbackRate = baseRate;
+      void b.play().catch(() => {});
       return;
     }
 
-    if (driftAbs <= SOFT_SYNC_THRESHOLD) {
+    const driftAbs = Math.abs(b.currentTime - target);
+    if (
+      mode === "hard" ||
+      (driftAbs > HARD_SYNC_THRESHOLD && now - lastHardSyncRef.current >= HARD_SYNC_INTERVAL_MS)
+    ) {
+      lastHardSyncRef.current = now;
+      b.currentTime = target;
       b.playbackRate = baseRate;
-      return;
     }
-
-    const nudge = clamp(drift * 0.6, -MAX_RATE_NUDGE, MAX_RATE_NUDGE);
-    b.playbackRate = clamp(baseRate - nudge, 0.0625, 16);
-  }, []);
+  }, [getBTarget]);
 
   // Mark both videos ready once metadata (duration) is loaded for each.
   useEffect(() => {
@@ -179,11 +207,17 @@ export function useSyncedPlayers(): SyncedPlayers {
     const a = videoARef.current;
     const b = videoBRef.current;
     if (!a || !b) return;
+    const targetInfo = getBTarget();
     a.playbackRate = playbackRate;
     b.playbackRate = playbackRate;
     syncB("hard");
-    void Promise.all([a.play(), b.play()]).then(() => setPlaying(true)).catch(() => {});
-  }, [playbackRate, syncB]);
+    const shouldPlayB =
+      targetInfo != null &&
+      targetInfo.rawTarget > 0 &&
+      targetInfo.rawTarget < targetInfo.maxB;
+    const plays = shouldPlayB ? [a.play(), b.play()] : [a.play()];
+    void Promise.all(plays).then(() => setPlaying(true)).catch(() => {});
+  }, [getBTarget, playbackRate, syncB]);
 
   const pause = useCallback(() => {
     const a = videoARef.current;
