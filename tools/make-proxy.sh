@@ -17,7 +17,7 @@ command -v ffmpeg >/dev/null 2>&1 || {
 ffmpeg -y \
   -i "$input" \
   -an \
-  -vf "scale='min(720,iw)':-2:force_original_aspect_ratio=decrease,fps=30,format=yuv420p" \
+  -vf "scale=720:720:force_original_aspect_ratio=decrease:force_divisible_by=2,fps=30,format=yuv420p" \
   -c:v libx264 \
   -preset veryfast \
   -crf 24 \

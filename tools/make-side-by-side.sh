@@ -24,8 +24,8 @@ ffmpeg -y \
   -ss "$mark_a" -i "$video_a" \
   -ss "$mark_b" -i "$video_b" \
   -filter_complex "\
-[0:v]scale=640:720:force_original_aspect_ratio=decrease,pad=640:720:(ow-iw)/2:(oh-ih)/2,fps=30,setpts=PTS-STARTPTS[left];\
-[1:v]scale=640:720:force_original_aspect_ratio=decrease,pad=640:720:(ow-iw)/2:(oh-ih)/2,fps=30,setpts=PTS-STARTPTS[right];\
+[0:v]scale=640:720:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=640:720:(ow-iw)/2:(oh-ih)/2,fps=30,setpts=PTS-STARTPTS[left];\
+[1:v]scale=640:720:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=640:720:(ow-iw)/2:(oh-ih)/2,fps=30,setpts=PTS-STARTPTS[right];\
 [left][right]hstack=inputs=2,format=yuv420p[out]" \
   -map "[out]" \
   -an \
