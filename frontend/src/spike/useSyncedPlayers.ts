@@ -22,8 +22,8 @@ type RVFC = (
   cb: (now: number, metadata: VideoFrameMetadata) => void,
 ) => number;
 
-const HARD_SYNC_THRESHOLD = 0.45; // seconds; seek only when drift is clearly visible
-const HARD_SYNC_INTERVAL_MS = 1000;
+const HARD_SYNC_THRESHOLD = 0.12; // seconds; visible drift, but not every frame
+const HARD_SYNC_INTERVAL_MS = 500;
 const UI_UPDATE_INTERVAL_MS = 100;
 
 export interface SyncedPlayers {
@@ -71,6 +71,7 @@ export function useSyncedPlayers(): SyncedPlayers {
   const playbackRateRef = useRef(1);
   const lastUiUpdateRef = useRef(0);
   const lastHardSyncRef = useRef(0);
+  const startupSyncUntilRef = useRef(0);
   markARef.current = markA;
   markBRef.current = markB;
   playbackRateRef.current = playbackRate;
@@ -128,10 +129,19 @@ export function useSyncedPlayers(): SyncedPlayers {
     }
 
     const driftAbs = Math.abs(b.currentTime - target);
-    if (
-      mode === "hard" ||
-      (driftAbs > HARD_SYNC_THRESHOLD && now - lastHardSyncRef.current >= HARD_SYNC_INTERVAL_MS)
-    ) {
+    if (mode === "hard") {
+      lastHardSyncRef.current = now;
+      b.currentTime = target;
+      b.playbackRate = baseRate;
+      return;
+    }
+
+    const inStartupSync = now < startupSyncUntilRef.current;
+    const canSync =
+      inStartupSync ||
+      now - lastHardSyncRef.current >= HARD_SYNC_INTERVAL_MS;
+
+    if (canSync && driftAbs > HARD_SYNC_THRESHOLD) {
       lastHardSyncRef.current = now;
       b.currentTime = target;
       b.playbackRate = baseRate;
@@ -216,7 +226,14 @@ export function useSyncedPlayers(): SyncedPlayers {
       targetInfo.rawTarget > 0 &&
       targetInfo.rawTarget < targetInfo.maxB;
     const plays = shouldPlayB ? [a.play(), b.play()] : [a.play()];
-    void Promise.all(plays).then(() => setPlaying(true)).catch(() => {});
+    void Promise.all(plays)
+      .then(() => {
+        startupSyncUntilRef.current = performance.now() + 700;
+        setPlaying(true);
+        requestAnimationFrame((now) => syncB("hard", now));
+        window.setTimeout(() => syncB("hard"), 120);
+      })
+      .catch(() => {});
   }, [getBTarget, playbackRate, syncB]);
 
   const pause = useCallback(() => {
