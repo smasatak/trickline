@@ -127,6 +127,20 @@ select {
   border-radius: 0 10px 10px 0;
 }
 
+.local-timeline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.local-timeline input {
+  min-width: 0;
+}
+
 .mark {
   display: flex;
   align-items: center;

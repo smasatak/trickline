@@ -34,7 +34,9 @@ export interface SyncedPlayers {
   playbackRate: number;
   fps: number;
   masterTime: number; // video A currentTime, seconds
+  videoBTime: number;
   durationA: number;
+  durationB: number;
   markA: number;
   markB: number;
   supportsRVFC: boolean;
@@ -43,6 +45,7 @@ export interface SyncedPlayers {
   toggle: () => void;
   stepFrames: (frames: number) => void;
   seekMaster: (seconds: number) => void;
+  seekVideo: (which: "A" | "B", seconds: number) => void;
   setPlaybackRate: (rate: number) => void;
   setFps: (fps: number) => void;
   markHere: (which: "A" | "B") => void;
@@ -62,7 +65,9 @@ export function useSyncedPlayers(): SyncedPlayers {
   const [playbackRate, setPlaybackRateState] = useState(1);
   const [fps, setFpsState] = useState(30);
   const [masterTime, setMasterTime] = useState(0);
+  const [videoBTime, setVideoBTime] = useState(0);
   const [durationA, setDurationA] = useState(0);
+  const [durationB, setDurationB] = useState(0);
   const [markA, setMarkA] = useState(0);
   const [markB, setMarkB] = useState(0);
 
@@ -108,6 +113,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (rawTarget <= 0) {
       b.pause();
       if (Math.abs(b.currentTime) > 0.02) b.currentTime = 0;
+      setVideoBTime(b.currentTime);
       b.playbackRate = baseRate;
       return;
     }
@@ -115,6 +121,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (rawTarget >= maxB) {
       b.pause();
       if (Math.abs(b.currentTime - maxB) > 0.02) b.currentTime = maxB;
+      setVideoBTime(b.currentTime);
       b.playbackRate = baseRate;
       return;
     }
@@ -132,6 +139,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (mode === "hard") {
       lastHardSyncRef.current = now;
       b.currentTime = target;
+      setVideoBTime(b.currentTime);
       b.playbackRate = baseRate;
       return;
     }
@@ -144,6 +152,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (canSync && driftAbs > HARD_SYNC_THRESHOLD) {
       lastHardSyncRef.current = now;
       b.currentTime = target;
+      setVideoBTime(b.currentTime);
       b.playbackRate = baseRate;
     }
   }, [getBTarget]);
@@ -158,6 +167,9 @@ export function useSyncedPlayers(): SyncedPlayers {
       if (isFinite(a.duration) && isFinite(b.duration) && a.duration > 0 && b.duration > 0) {
         setReady(true);
         setDurationA(a.duration);
+        setDurationB(b.duration);
+        setMasterTime(a.currentTime);
+        setVideoBTime(b.currentTime);
       }
     };
     a.addEventListener("loadedmetadata", check);
@@ -185,6 +197,7 @@ export function useSyncedPlayers(): SyncedPlayers {
       if (now - lastUiUpdateRef.current >= UI_UPDATE_INTERVAL_MS || a.ended) {
         lastUiUpdateRef.current = now;
         setMasterTime(mediaTime ?? a.currentTime);
+        if (videoBRef.current) setVideoBTime(videoBRef.current.currentTime);
       }
       syncB();
       if (a.ended) {
@@ -245,6 +258,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     if (b) b.playbackRate = playbackRateRef.current;
     setPlaying(false);
     if (a) setMasterTime(a.currentTime);
+    if (b) setVideoBTime(b.currentTime);
   }, []);
 
   const toggle = useCallback(() => (playing ? pause() : play()), [playing, play, pause]);
@@ -272,6 +286,18 @@ export function useSyncedPlayers(): SyncedPlayers {
       requestAnimationFrame(() => syncB("hard"));
     },
     [syncB],
+  );
+
+  const seekVideo = useCallback(
+    (which: "A" | "B", seconds: number) => {
+      pause();
+      const video = which === "A" ? videoARef.current : videoBRef.current;
+      if (!video) return;
+      video.currentTime = clamp(seconds, 0, isFinite(video.duration) ? video.duration : seconds);
+      if (which === "A") setMasterTime(video.currentTime);
+      else setVideoBTime(video.currentTime);
+    },
+    [pause],
   );
 
   const setPlaybackRate = useCallback((rate: number) => {
@@ -302,7 +328,9 @@ export function useSyncedPlayers(): SyncedPlayers {
     playbackRate,
     fps,
     masterTime,
+    videoBTime,
     durationA,
+    durationB,
     markA,
     markB,
     supportsRVFC,
@@ -311,6 +339,7 @@ export function useSyncedPlayers(): SyncedPlayers {
     toggle,
     stepFrames,
     seekMaster,
+    seekVideo,
     setPlaybackRate,
     setFps,
     markHere,

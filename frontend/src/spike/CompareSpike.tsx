@@ -63,6 +63,18 @@ export function CompareSpike() {
             muted
             preload="auto"
           />
+          <div className="local-timeline">
+            <input
+              type="range"
+              min={0}
+              max={p.durationA || 0}
+              step={1 / p.fps}
+              value={p.masterTime}
+              disabled={!p.durationA || p.playing}
+              onChange={(e) => p.seekVideo("A", parseFloat(e.target.value))}
+            />
+            <span>{fmt(p.masterTime)}s</span>
+          </div>
           <div className="mark">
             <button onClick={() => p.markHere("A")}>ここを基準点に (A)</button>
             <span>mark: {fmt(p.markA)}s</span>
@@ -78,6 +90,18 @@ export function CompareSpike() {
             muted
             preload="auto"
           />
+          <div className="local-timeline">
+            <input
+              type="range"
+              min={0}
+              max={p.durationB || 0}
+              step={1 / p.fps}
+              value={p.videoBTime}
+              disabled={!p.durationB || p.playing}
+              onChange={(e) => p.seekVideo("B", parseFloat(e.target.value))}
+            />
+            <span>{fmt(p.videoBTime)}s</span>
+          </div>
           <div className="mark">
             <button onClick={() => p.markHere("B")}>ここを基準点に (B)</button>
             <span>mark: {fmt(p.markB)}s</span>
