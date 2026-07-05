@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="trickline">
+  <rect width="512" height="512" rx="96" fill="#0f1115"/>
+  <path d="M88 318c52-42 111-63 176-63 57 0 111 16 160 48" fill="none" stroke="#3b82f6" stroke-width="36" stroke-linecap="round"/>
+  <path d="M108 221h296" fill="none" stroke="#e6e8ec" stroke-width="32" stroke-linecap="round"/>
+  <circle cx="218" cy="190" r="34" fill="#e6e8ec"/>
+  <path d="M255 195l48 36 58-24" fill="none" stroke="#e6e8ec" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
