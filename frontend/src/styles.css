@@ -78,8 +78,7 @@ button.primary {
 }
 
 input,
-select,
-textarea {
+select {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--line);
@@ -89,22 +88,6 @@ textarea {
 }
 
 /* ---- Spike ---- */
-.poc-setup {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-.poc-setup label,
-.session-note {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 0.82rem;
-}
-
 .videos {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -213,17 +196,6 @@ textarea {
   font-size: 0.85rem;
 }
 
-.session-note {
-  margin-top: 14px;
-}
-
-.session-note textarea {
-  width: 100%;
-  min-height: 72px;
-  resize: vertical;
-  line-height: 1.4;
-}
-
 .hint {
   color: var(--muted);
   font-size: 0.82rem;
@@ -235,10 +207,6 @@ textarea {
   .app {
     padding-left: 10px;
     padding-right: 10px;
-  }
-
-  .poc-setup {
-    grid-template-columns: 1fr;
   }
 
   .mark {

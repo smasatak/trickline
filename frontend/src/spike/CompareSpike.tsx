@@ -2,12 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSyncedPlayers } from "./useSyncedPlayers";
 
 const RATES = [0.25, 0.5, 0.75, 1];
-const MARK_TEMPLATES = {
-  kicker: ["抜け", "最大高さ", "着地直前", "着地"],
-  jib: ["乗り始め", "板角度最大", "アイテム中央", "抜け"],
-};
-
-type TrickType = keyof typeof MARK_TEMPLATES;
+const BASE_MARK = "抜け";
 
 interface PickedVideo {
   name: string;
@@ -30,9 +25,6 @@ export function CompareSpike() {
   const [urlB, setUrlB] = useState<string | null>(null);
   const [fileA, setFileA] = useState<PickedVideo | null>(null);
   const [fileB, setFileB] = useState<PickedVideo | null>(null);
-  const [trickType, setTrickType] = useState<TrickType>("kicker");
-  const [markTemplate, setMarkTemplate] = useState(MARK_TEMPLATES.kicker[0]);
-  const [note, setNote] = useState("");
   const urlsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -57,11 +49,6 @@ export function CompareSpike() {
     }
   };
 
-  const setType = (nextType: TrickType) => {
-    setTrickType(nextType);
-    setMarkTemplate(MARK_TEMPLATES[nextType][0]);
-  };
-
   // Keyboard: space = play/pause, arrows = step frame.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -83,26 +70,6 @@ export function CompareSpike() {
 
   return (
     <div className="spike">
-      <section className="poc-setup" aria-label="比較設定">
-        <label>
-          トリック
-          <select value={trickType} onChange={(e) => setType(e.target.value as TrickType)}>
-            <option value="kicker">キッカー</option>
-            <option value="jib">ジブ</option>
-          </select>
-        </label>
-        <label>
-          合わせる瞬間
-          <select value={markTemplate} onChange={(e) => setMarkTemplate(e.target.value)}>
-            {MARK_TEMPLATES[trickType].map((template) => (
-              <option key={template} value={template}>
-                {template}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
-
       <div className="videos">
         <div className="video-col">
           <input type="file" accept="video/*" onChange={pick("A")} />
@@ -132,7 +99,7 @@ export function CompareSpike() {
           </div>
           <div className="mark">
             <button onClick={() => p.markHere("A")}>Aをこの瞬間にする</button>
-            <span>{markTemplate}: {fmt(p.markA)}s</span>
+            <span>{BASE_MARK}: {fmt(p.markA)}s</span>
           </div>
         </div>
 
@@ -164,7 +131,7 @@ export function CompareSpike() {
           </div>
           <div className="mark">
             <button onClick={() => p.markHere("B")}>Bをこの瞬間にする</button>
-            <span>{markTemplate}: {fmt(p.markB)}s</span>
+            <span>{BASE_MARK}: {fmt(p.markB)}s</span>
           </div>
         </div>
       </div>
@@ -224,19 +191,9 @@ export function CompareSpike() {
         <button onClick={p.resetMarks}>基準点リセット</button>
       </div>
 
-      <label className="session-note">
-        メモ
-        <textarea
-          rows={3}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={`${trickType === "kicker" ? "抜けや着地" : "乗り始めや抜け"}で気づいたこと`}
-        />
-      </label>
-
       <p className="hint">
-        Space = 再生/停止、← → = コマ送り。A/Bそれぞれで「{markTemplate}」の瞬間を
-        指定すると、その瞬間を揃えて同期再生します。
+        Space = 再生/停止、← → = コマ送り。A/Bそれぞれで「{BASE_MARK}」の瞬間を
+        指定すると、その瞬間を揃えて同期再生します。将来はこの瞬間の自動候補検出を検証します。
         {" "}
         コマ送り精度:{" "}
         <strong>{p.supportsRVFC ? "requestVideoFrameCallback 対応" : "近似 (rAF)"}</strong>
