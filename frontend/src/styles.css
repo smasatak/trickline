@@ -203,6 +203,44 @@ select {
   margin-top: 16px;
 }
 
+.test-log {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.test-log label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.test-log textarea {
+  width: 100%;
+  min-width: 0;
+  resize: vertical;
+  background: #11141a;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font: inherit;
+  line-height: 1.5;
+}
+
+.test-log pre {
+  overflow-x: auto;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 540px) {
   .app {
     padding-left: 10px;

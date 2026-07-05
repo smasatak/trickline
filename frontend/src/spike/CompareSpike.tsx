@@ -7,11 +7,22 @@ const BASE_MARK = "抜け";
 interface PickedVideo {
   name: string;
   sizeMb: string;
+  type: string;
+  width?: number;
+  height?: number;
 }
 
 function fmt(t: number): string {
   if (!isFinite(t)) return "0.00";
   return t.toFixed(2);
+}
+
+function fmtVideo(v: PickedVideo | null, duration: number): string {
+  if (!v) return "not selected";
+  const size = `${v.sizeMb}MB`;
+  const dimensions = v.width && v.height ? `${v.width}x${v.height}` : "unknown size";
+  const type = v.type || "unknown type";
+  return `${v.name} / ${size} / ${dimensions} / ${fmt(duration)}s / ${type}`;
 }
 
 /**
@@ -25,6 +36,8 @@ export function CompareSpike() {
   const [urlB, setUrlB] = useState<string | null>(null);
   const [fileA, setFileA] = useState<PickedVideo | null>(null);
   const [fileB, setFileB] = useState<PickedVideo | null>(null);
+  const [testNote, setTestNote] = useState("");
+  const [copyStatus, setCopyStatus] = useState("");
   const urlsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -38,6 +51,7 @@ export function CompareSpike() {
     const picked = {
       name: file.name,
       sizeMb: (file.size / 1024 / 1024).toFixed(1),
+      type: file.type,
     };
     urlsRef.current.push(url);
     if (which === "A") {
@@ -68,6 +82,45 @@ export function CompareSpike() {
     return () => window.removeEventListener("keydown", onKey);
   }, [p]);
 
+  const onLoadedMetadata = (which: "A" | "B") => (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    const update = (current: PickedVideo | null): PickedVideo | null =>
+      current ? { ...current, width: v.videoWidth, height: v.videoHeight } : current;
+    if (which === "A") setFileA(update);
+    else setFileB(update);
+  };
+
+  const buildTestLog = () => {
+    const drift = Math.abs(p.videoBTime - (p.masterTime - p.markA + p.markB));
+    return [
+      "trickline playback test",
+      `date: ${new Date().toISOString()}`,
+      `userAgent: ${navigator.userAgent}`,
+      `mode: ${p.syncMode}`,
+      `playbackRate: ${p.playbackRate}`,
+      `fps step: ${p.fps}`,
+      `supports requestVideoFrameCallback: ${p.supportsRVFC ? "yes" : "no"}`,
+      `A: ${fmtVideo(fileA, p.durationA)}`,
+      `B: ${fmtVideo(fileB, p.durationB)}`,
+      `markA: ${fmt(p.markA)}s`,
+      `markB: ${fmt(p.markB)}s`,
+      `currentA: ${fmt(p.masterTime)}s`,
+      `currentB: ${fmt(p.videoBTime)}s`,
+      `estimated drift: ${fmt(drift)}s`,
+      `note: ${testNote || "-"}`,
+    ].join("\n");
+  };
+
+  const copyTestLog = async () => {
+    const text = buildTestLog();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyStatus("コピー済み");
+    } catch {
+      setCopyStatus(text);
+    }
+  };
+
   return (
     <div className="spike">
       <div className="videos">
@@ -84,6 +137,7 @@ export function CompareSpike() {
             playsInline
             muted
             preload="auto"
+            onLoadedMetadata={onLoadedMetadata("A")}
           />
           <div className="local-timeline">
             <input
@@ -116,6 +170,7 @@ export function CompareSpike() {
             playsInline
             muted
             preload="auto"
+            onLoadedMetadata={onLoadedMetadata("B")}
           />
           <div className="local-timeline">
             <input
@@ -197,6 +252,22 @@ export function CompareSpike() {
         </label>
 
         <button onClick={p.resetMarks}>基準点リセット</button>
+      </div>
+
+      <div className="test-log">
+        <label>
+          検証メモ
+          <textarea
+            rows={3}
+            value={testNote}
+            onChange={(e) => setTestNote(e.target.value)}
+            placeholder="例: iPhone 15 Safari。安定優先は許容、同期優先はBが2秒付近で詰まる。"
+          />
+        </label>
+        <button onClick={copyTestLog} disabled={!fileA || !fileB}>
+          検証ログをコピー
+        </button>
+        {copyStatus ? <pre>{copyStatus}</pre> : null}
       </div>
 
       <p className="hint">
