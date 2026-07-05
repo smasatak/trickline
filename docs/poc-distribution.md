@@ -8,6 +8,7 @@ Share the current comparison POC with a phone and keep it usable without the bac
 
 - Frontend only: the compare POC does not upload video files and does not require the backend.
 - Static build: `npm run build` produces `frontend/dist`.
+- Public HTTPS URL: the practical POC distribution path is a static host URL that can be opened from any phone. Same-Wi-Fi preview is only for developer smoke testing.
 - PWA shell: the production build registers a service worker and includes a web app manifest, so the app shell can be reopened after first load.
 - Phone workflow: open the hosted URL, choose two local videos from the phone, align both videos at `抜け`, then compare by step or simultaneous playback.
 
@@ -20,9 +21,9 @@ Share the current comparison POC with a phone and keep it usable without the bac
    npm run build
    ```
 
-2. Host `frontend/dist` on a static host.
+2. Host `frontend/dist` on a public HTTPS static host.
 
-   Suitable options for this POC are Vercel, Netlify, Cloudflare Pages, GitHub Pages, or a local same-Wi-Fi preview. No server API is required for the comparison screen.
+   Suitable options for this POC are Vercel, Netlify, Cloudflare Pages, or another static host with HTTPS. No server API is required for the comparison screen.
 
 3. On iPhone/Android, open the URL and add it to the home screen if repeated testing is needed.
 
@@ -37,6 +38,10 @@ For the first distribution test:
 - Prefer step playback and slow playback for detailed timing checks.
 - Avoid 4K, long clips, high bitrate exports, or mixed frame rates.
 - If simultaneous playback still jitters on target phones, the next implementation step is a client-side or backend-assisted proxy video path that normalizes both clips before comparison.
+
+## Not a distribution path
+
+Same-Wi-Fi preview such as `npm run dev -- --host 0.0.0.0` is not a realistic way to share this POC. It is useful only to check the latest local build on the developer's own phone before deploying.
 
 ## Acceptance checklist
 
