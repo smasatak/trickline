@@ -24,3 +24,7 @@ dist/
 # Data
 minio-data/
 postgres-data/
+
+# Spike artifacts (generated output and downloaded model weights)
+spike/pose_spike/output/
+*.task
