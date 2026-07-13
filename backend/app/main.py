@@ -1,25 +1,20 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
-from .db import Base, engine
 from .routers import auth, comparisons, videos
 
 settings = get_settings()
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Scaffold convenience: create tables on startup. Replace with Alembic
-    # migrations before this graduates past the MVP.
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-
-
-app = FastAPI(title="trickline API", version="0.1.0", lifespan=lifespan)
+# Schema management moved to Alembic (see backend/alembic/). The previous
+# lifespan hook that called Base.metadata.create_all on every startup was
+# removed rather than kept as a "dev fallback": with async_sessionmaker code
+# on top of models.py, a silent create_all makes it easy to change a model,
+# forget to write a migration, and still have the app "work" locally while
+# being out of sync with what `alembic upgrade head` would produce elsewhere
+# (and in prod). Run `alembic upgrade head` after `docker compose up -d`
+# (see backend/README.md) before starting the API.
+app = FastAPI(title="trickline API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
