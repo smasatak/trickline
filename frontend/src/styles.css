@@ -304,6 +304,35 @@ select {
   line-height: 1.6;
 }
 
+/* Video library (F-51): reuses .video-list/.video-card from the MVP tab. */
+.library-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.library-edit .meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Session restore / save-failure notices (F-50/F-52). */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 16px);
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: calc(100% - 32px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
 .local-timeline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 52px;

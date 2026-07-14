@@ -64,6 +64,8 @@ export interface SyncedPlayers {
   setFps: (fps: number) => void;
   markHere: (which: "A" | "B") => void;
   resetMarks: () => void;
+  /** Set both marks directly (F-52: restoring a saved session). */
+  setMarks: (a: number, b: number) => void;
 }
 
 function clamp(v: number, min: number, max: number) {
@@ -345,6 +347,11 @@ export function useSyncedPlayers(): SyncedPlayers {
     setMarkB(0);
   }, []);
 
+  const setMarks = useCallback((a: number, b: number) => {
+    setMarkA(a);
+    setMarkB(b);
+  }, []);
+
   return {
     videoARef,
     videoBRef,
@@ -371,5 +378,6 @@ export function useSyncedPlayers(): SyncedPlayers {
     setFps,
     markHere,
     resetMarks,
+    setMarks,
   };
 }

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { getStorage } from "../storage";
 import { TimerCamera } from "./TimerCamera";
 import { usePoseOverlay } from "./usePoseOverlay";
 import { useSyncedPlayers } from "./useSyncedPlayers";
+import type { LibraryEntry } from "./useVideoLibrary";
+import { useVideoLibrary } from "./useVideoLibrary";
+import { VideoLibrary } from "./VideoLibrary";
 
 const RATES = [0.25, 0.5, 0.75, 1];
 const BASE_MARK = "抜け";
@@ -35,59 +39,132 @@ function fmtVideo(v: PickedVideo | null, duration: number): string {
 export function CompareSpike() {
   const p = useSyncedPlayers();
   const pose = usePoseOverlay(p.videoARef, p.videoBRef);
+  const library = useVideoLibrary();
   const [urlA, setUrlA] = useState<string | null>(null);
   const [urlB, setUrlB] = useState<string | null>(null);
   const [fileA, setFileA] = useState<PickedVideo | null>(null);
   const [fileB, setFileB] = useState<PickedVideo | null>(null);
+  // Library ids for the current A/B slots, when known (F-51/F-52). null means
+  // "not yet saved" or "loaded from a source we don't track", e.g. mid-save.
+  const [videoIdA, setVideoIdA] = useState<string | null>(null);
+  const [videoIdB, setVideoIdB] = useState<string | null>(null);
   const [testNote, setTestNote] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [toast, setToast] = useState("");
   const urlsRef = useRef<string[]>([]);
 
   useEffect(() => {
     return () => urlsRef.current.forEach((u) => URL.revokeObjectURL(u));
   }, []);
 
-  const pick = (which: "A" | "B") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const picked = {
-      name: file.name,
-      sizeMb: (file.size / 1024 / 1024).toFixed(1),
-      type: file.type,
-    };
-    urlsRef.current.push(url);
+  // Auto-dismiss toasts/warnings (session restore, save failures) after a beat.
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(""), 4000);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  const setSlot = (which: "A" | "B", url: string, picked: PickedVideo, videoId: string | null) => {
     if (which === "A") {
       setUrlA(url);
       setFileA(picked);
+      setVideoIdA(videoId);
     } else {
       setUrlB(url);
       setFileB(picked);
+      setVideoIdB(videoId);
     }
+  };
+
+  // Common path for any freshly captured/picked Blob: show it immediately,
+  // then persist it in the background (F-50) so it survives closing the app.
+  // The compare flow never blocks on the save — only a failure is surfaced.
+  const applyBlob = (which: "A" | "B", blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob);
+    urlsRef.current.push(url);
+    setSlot(which, url, { name, sizeMb: (blob.size / 1024 / 1024).toFixed(1), type: blob.type }, null);
+
+    library
+      .saveVideo(blob, name)
+      .then((record) => {
+        if (which === "A") setVideoIdA(record.id);
+        else setVideoIdB(record.id);
+      })
+      .catch(() => {
+        setToast("動画の保存に失敗しました（今回のセッション内でのみ使えます）");
+      });
+  };
+
+  const pick = (which: "A" | "B") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    applyBlob(which, file, file.name);
   };
 
   // F-14: timer-captured clip goes straight into a compare slot.
   const attachRecording = (which: "A" | "B", blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    urlsRef.current.push(url);
     const pad = (n: number) => String(n).padStart(2, "0");
     const now = new Date();
     const stamp = `${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const picked = {
-      name: `タイマー撮影 ${stamp}.${blob.type.includes("mp4") ? "mp4" : "webm"}`,
-      sizeMb: (blob.size / 1024 / 1024).toFixed(1),
-      type: blob.type,
-    };
-    if (which === "A") {
-      setUrlA(url);
-      setFileA(picked);
-    } else {
-      setUrlB(url);
-      setFileB(picked);
-    }
+    applyBlob(which, blob, `タイマー撮影 ${stamp}.${blob.type.includes("mp4") ? "mp4" : "webm"}`);
     setCameraOpen(false);
   };
+
+  // F-51: pull a previously saved clip back out of the library into a slot.
+  const pickFromLibrary = (which: "A" | "B", entry: LibraryEntry) => {
+    library
+      .loadBlob(entry.id)
+      .then((blob) => {
+        if (!blob) {
+          setToast("動画データの読み込みに失敗しました");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        urlsRef.current.push(url);
+        setSlot(
+          which,
+          url,
+          {
+            name: entry.tag || entry.name,
+            sizeMb: (entry.sizeBytes / 1024 / 1024).toFixed(1),
+            type: entry.mimeType,
+          },
+          entry.id,
+        );
+        setLibraryOpen(false);
+      })
+      .catch(() => setToast("動画データの読み込みに失敗しました"));
+  };
+
+  // F-52: once both slots are library videos, restore any saved alignment
+  // for this exact pair, then keep saving as the user adjusts the marks.
+  useEffect(() => {
+    if (!videoIdA || !videoIdB) return;
+    let cancelled = false;
+    getStorage()
+      .getSession(videoIdA, videoIdB)
+      .then((session) => {
+        if (cancelled || !session) return;
+        p.setMarks(session.markA, session.markB);
+        setToast("前回の基準点を復元しました");
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [videoIdA, videoIdB, p.setMarks]);
+
+  useEffect(() => {
+    if (!videoIdA || !videoIdB) return;
+    const t = window.setTimeout(() => {
+      getStorage()
+        .saveSession({ videoIdA, videoIdB, markA: p.markA, markB: p.markB })
+        .catch(() => undefined);
+    }, 500);
+    return () => window.clearTimeout(t);
+  }, [videoIdA, videoIdB, p.markA, p.markB]);
 
   // Keyboard: space = play/pause, arrows = step frame.
   useEffect(() => {
@@ -287,6 +364,7 @@ export function CompareSpike() {
         <button onClick={p.resetMarks}>基準点リセット</button>
 
         <button onClick={() => setCameraOpen(true)}>📷 タイマー撮影</button>
+        <button onClick={() => setLibraryOpen(true)}>📼 ライブラリ ({library.entries.length})</button>
 
         <label className="pose-toggle">
           <input
@@ -327,12 +405,22 @@ export function CompareSpike() {
         — フレーム厳密ではなく 1/fps 単位の近似です (F-23)。
       </p>
 
+      {toast ? <div className="toast">{toast}</div> : null}
+
       {cameraOpen ? (
         <TimerCamera
           hasA={!!urlA}
           hasB={!!urlB}
           onUse={attachRecording}
           onClose={() => setCameraOpen(false)}
+        />
+      ) : null}
+
+      {libraryOpen ? (
+        <VideoLibrary
+          library={library}
+          onSelect={pickFromLibrary}
+          onClose={() => setLibraryOpen(false)}
         />
       ) : null}
     </div>

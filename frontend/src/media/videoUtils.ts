@@ -10,7 +10,7 @@ export interface Probe {
   height: number;
 }
 
-export function probeVideo(file: File): Promise<Probe> {
+export function probeVideo(file: Blob): Promise<Probe> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement("video");
@@ -34,7 +34,7 @@ export function probeVideo(file: File): Promise<Probe> {
 }
 
 /** Grab a JPEG thumbnail at `atSeconds` (default 0.5s in). */
-export function generateThumbnail(file: File, atSeconds = 0.5): Promise<Blob> {
+export function generateThumbnail(file: Blob, atSeconds = 0.5): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const v = document.createElement("video");
