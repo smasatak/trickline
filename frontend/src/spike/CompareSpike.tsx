@@ -92,7 +92,8 @@ export function CompareSpike() {
         if (which === "A") setVideoIdA(record.id);
         else setVideoIdB(record.id);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("library save failed", err);
         setToast("動画の保存に失敗しました（今回のセッション内でのみ使えます）");
       });
   };
