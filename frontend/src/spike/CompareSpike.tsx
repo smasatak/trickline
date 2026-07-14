@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { TimerCamera } from "./TimerCamera";
 import { usePoseOverlay } from "./usePoseOverlay";
 import { useSyncedPlayers } from "./useSyncedPlayers";
 
@@ -40,6 +41,7 @@ export function CompareSpike() {
   const [fileB, setFileB] = useState<PickedVideo | null>(null);
   const [testNote, setTestNote] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const urlsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -65,9 +67,32 @@ export function CompareSpike() {
     }
   };
 
+  // F-14: timer-captured clip goes straight into a compare slot.
+  const attachRecording = (which: "A" | "B", blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    urlsRef.current.push(url);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const now = new Date();
+    const stamp = `${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const picked = {
+      name: `タイマー撮影 ${stamp}.${blob.type.includes("mp4") ? "mp4" : "webm"}`,
+      sizeMb: (blob.size / 1024 / 1024).toFixed(1),
+      type: blob.type,
+    };
+    if (which === "A") {
+      setUrlA(url);
+      setFileA(picked);
+    } else {
+      setUrlB(url);
+      setFileB(picked);
+    }
+    setCameraOpen(false);
+  };
+
   // Keyboard: space = play/pause, arrows = step frame.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (cameraOpen) return; // don't drive playback behind the capture modal
       if (e.target instanceof HTMLInputElement) return;
       if (e.code === "Space") {
         e.preventDefault();
@@ -82,7 +107,7 @@ export function CompareSpike() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [p]);
+  }, [p, cameraOpen]);
 
   const onLoadedMetadata = (which: "A" | "B") => (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -261,6 +286,8 @@ export function CompareSpike() {
 
         <button onClick={p.resetMarks}>基準点リセット</button>
 
+        <button onClick={() => setCameraOpen(true)}>📷 タイマー撮影</button>
+
         <label className="pose-toggle">
           <input
             type="checkbox"
@@ -299,6 +326,15 @@ export function CompareSpike() {
         {" "}
         — フレーム厳密ではなく 1/fps 単位の近似です (F-23)。
       </p>
+
+      {cameraOpen ? (
+        <TimerCamera
+          hasA={!!urlA}
+          hasB={!!urlB}
+          onUse={attachRecording}
+          onClose={() => setCameraOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }
