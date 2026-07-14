@@ -9,6 +9,9 @@ import { VideoLibrary } from "./VideoLibrary";
 
 const RATES = [0.25, 0.5, 0.75, 1];
 const BASE_MARK = "抜け";
+// Remember which library videos were last in A/B (localStorage: tiny ids,
+// unlike the video blobs themselves which live in IndexedDB via storage/).
+const LAST_VIDEO_ID_KEY = { A: "trickline:lastVideoIdA", B: "trickline:lastVideoIdB" } as const;
 
 interface PickedVideo {
   name: string;
@@ -138,6 +141,30 @@ export function CompareSpike() {
       })
       .catch(() => setToast("動画データの読み込みに失敗しました"));
   };
+
+  // Remember the last video placed in each slot so a reload can restore it
+  // (D-15: the app shouldn't come back empty just because the tab closed).
+  useEffect(() => {
+    if (videoIdA) localStorage.setItem(LAST_VIDEO_ID_KEY.A, videoIdA);
+  }, [videoIdA]);
+  useEffect(() => {
+    if (videoIdB) localStorage.setItem(LAST_VIDEO_ID_KEY.B, videoIdB);
+  }, [videoIdB]);
+
+  // Once the library has loaded, try to restore whatever was last in A/B.
+  // Runs once: later slot changes are the user's own doing and shouldn't be
+  // fought with a "restore".
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || library.loading) return;
+    restoredRef.current = true;
+    const lastIdA = localStorage.getItem(LAST_VIDEO_ID_KEY.A);
+    const lastIdB = localStorage.getItem(LAST_VIDEO_ID_KEY.B);
+    const entryA = lastIdA ? library.entries.find((e) => e.id === lastIdA) : undefined;
+    const entryB = lastIdB ? library.entries.find((e) => e.id === lastIdB) : undefined;
+    if (entryA) pickFromLibrary("A", entryA);
+    if (entryB) pickFromLibrary("B", entryB);
+  }, [library.loading, library.entries]);
 
   // F-52: once both slots are library videos, restore any saved alignment
   // for this exact pair, then keep saving as the user adjusts the marks.
