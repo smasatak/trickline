@@ -141,6 +141,39 @@ select {
   border-radius: 0 10px 10px 0;
 }
 
+.video-frame {
+  position: relative;
+  min-width: 0;
+}
+
+.video-frame video {
+  width: 100%;
+}
+
+/* Pose overlay (F-40): backing store = video pixel size, so object-fit:
+   contain letterboxes it exactly like the <video> underneath. */
+.pose-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.pose-toggle input[type="checkbox"] {
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.pose-status {
+  font-size: 0.78rem;
+}
+
+.pose-status.error {
+  color: var(--bad);
+}
+
 .local-timeline {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 52px;

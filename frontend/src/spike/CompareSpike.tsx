@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { usePoseOverlay } from "./usePoseOverlay";
 import { useSyncedPlayers } from "./useSyncedPlayers";
 
 const RATES = [0.25, 0.5, 0.75, 1];
@@ -32,6 +33,7 @@ function fmtVideo(v: PickedVideo | null, duration: number): string {
  */
 export function CompareSpike() {
   const p = useSyncedPlayers();
+  const pose = usePoseOverlay(p.videoARef, p.videoBRef);
   const [urlA, setUrlA] = useState<string | null>(null);
   const [urlB, setUrlB] = useState<string | null>(null);
   const [fileA, setFileA] = useState<PickedVideo | null>(null);
@@ -131,14 +133,17 @@ export function CompareSpike() {
             <span>{fileA ? `${fileA.name} / ${fileA.sizeMb}MB` : "動画未選択"}</span>
             <span>{p.durationA ? `${fmt(p.durationA)}s` : "duration --"}</span>
           </div>
-          <video
-            ref={p.videoARef}
-            src={urlA ?? undefined}
-            playsInline
-            muted
-            preload="auto"
-            onLoadedMetadata={onLoadedMetadata("A")}
-          />
+          <div className="video-frame">
+            <video
+              ref={p.videoARef}
+              src={urlA ?? undefined}
+              playsInline
+              muted
+              preload="auto"
+              onLoadedMetadata={onLoadedMetadata("A")}
+            />
+            {pose.enabled ? <canvas ref={pose.canvasARef} className="pose-canvas" /> : null}
+          </div>
           <div className="local-timeline">
             <input
               type="range"
@@ -164,14 +169,17 @@ export function CompareSpike() {
             <span>{fileB ? `${fileB.name} / ${fileB.sizeMb}MB` : "動画未選択"}</span>
             <span>{p.durationB ? `${fmt(p.durationB)}s` : "duration --"}</span>
           </div>
-          <video
-            ref={p.videoBRef}
-            src={urlB ?? undefined}
-            playsInline
-            muted
-            preload="auto"
-            onLoadedMetadata={onLoadedMetadata("B")}
-          />
+          <div className="video-frame">
+            <video
+              ref={p.videoBRef}
+              src={urlB ?? undefined}
+              playsInline
+              muted
+              preload="auto"
+              onLoadedMetadata={onLoadedMetadata("B")}
+            />
+            {pose.enabled ? <canvas ref={pose.canvasBRef} className="pose-canvas" /> : null}
+          </div>
           <div className="local-timeline">
             <input
               type="range"
@@ -252,6 +260,18 @@ export function CompareSpike() {
         </label>
 
         <button onClick={p.resetMarks}>基準点リセット</button>
+
+        <label className="pose-toggle">
+          <input
+            type="checkbox"
+            checked={pose.enabled}
+            disabled={pose.loading}
+            onChange={pose.toggle}
+          />
+          骨格表示
+          {pose.loading ? <span className="pose-status">読み込み中…</span> : null}
+          {pose.error ? <span className="pose-status error">{pose.error}</span> : null}
+        </label>
       </div>
 
       <div className="test-log">
