@@ -6,6 +6,7 @@ import { useSyncedPlayers } from "./useSyncedPlayers";
 import type { LibraryEntry } from "./useVideoLibrary";
 import { useVideoLibrary } from "./useVideoLibrary";
 import { VideoLibrary } from "./VideoLibrary";
+import { useZoomPan } from "./useZoomPan";
 
 const RATES = [0.25, 0.5, 0.75, 1];
 const BASE_MARK = "抜け";
@@ -43,6 +44,8 @@ export function CompareSpike() {
   const p = useSyncedPlayers();
   const pose = usePoseOverlay(p.videoARef, p.videoBRef);
   const library = useVideoLibrary();
+  const zoomA = useZoomPan();
+  const zoomB = useZoomPan();
   const [urlA, setUrlA] = useState<string | null>(null);
   const [urlB, setUrlB] = useState<string | null>(null);
   const [fileA, setFileA] = useState<PickedVideo | null>(null);
@@ -167,7 +170,7 @@ export function CompareSpike() {
   }, [library.loading, library.entries]);
 
   // F-52: once both slots are library videos, restore any saved alignment
-  // for this exact pair, then keep saving as the user adjusts the marks.
+  // (marks + zoom/pan) for this exact pair, then keep saving as they change.
   useEffect(() => {
     if (!videoIdA || !videoIdB) return;
     let cancelled = false;
@@ -176,23 +179,33 @@ export function CompareSpike() {
       .then((session) => {
         if (cancelled || !session) return;
         p.setMarks(session.markA, session.markB);
-        setToast("前回の基準点を復元しました");
+        zoomA.setState(session.viewA);
+        zoomB.setState(session.viewB);
+        setToast("前回の基準点・拡大表示を復元しました");
       })
       .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-  }, [videoIdA, videoIdB, p.setMarks]);
+    // zoomA/zoomB.setState are stable (useCallback, no deps).
+  }, [videoIdA, videoIdB, p.setMarks, zoomA.setState, zoomB.setState]);
 
   useEffect(() => {
     if (!videoIdA || !videoIdB) return;
     const t = window.setTimeout(() => {
       getStorage()
-        .saveSession({ videoIdA, videoIdB, markA: p.markA, markB: p.markB })
+        .saveSession({
+          videoIdA,
+          videoIdB,
+          markA: p.markA,
+          markB: p.markB,
+          viewA: { scale: zoomA.scale, x: zoomA.x, y: zoomA.y },
+          viewB: { scale: zoomB.scale, x: zoomB.x, y: zoomB.y },
+        })
         .catch(() => undefined);
     }, 500);
     return () => window.clearTimeout(t);
-  }, [videoIdA, videoIdB, p.markA, p.markB]);
+  }, [videoIdA, videoIdB, p.markA, p.markB, zoomA.scale, zoomA.x, zoomA.y, zoomB.scale, zoomB.x, zoomB.y]);
 
   // Keyboard: space = play/pause, arrows = step frame.
   useEffect(() => {
@@ -263,16 +276,26 @@ export function CompareSpike() {
             <span>{fileA ? `${fileA.name} / ${fileA.sizeMb}MB` : "動画未選択"}</span>
             <span>{p.durationA ? `${fmt(p.durationA)}s` : "duration --"}</span>
           </div>
-          <div className="video-frame">
-            <video
-              ref={p.videoARef}
-              src={urlA ?? undefined}
-              playsInline
-              muted
-              preload="auto"
-              onLoadedMetadata={onLoadedMetadata("A")}
-            />
-            {pose.enabled ? <canvas ref={pose.canvasARef} className="pose-canvas" /> : null}
+          <div className="video-frame" ref={zoomA.containerRef}>
+            <div
+              className="video-zoom-layer"
+              style={{ transform: `translate(${zoomA.x}px, ${zoomA.y}px) scale(${zoomA.scale})` }}
+            >
+              <video
+                ref={p.videoARef}
+                src={urlA ?? undefined}
+                playsInline
+                muted
+                preload="auto"
+                onLoadedMetadata={onLoadedMetadata("A")}
+              />
+              {pose.enabled ? <canvas ref={pose.canvasARef} className="pose-canvas" /> : null}
+            </div>
+            {zoomA.isZoomed ? (
+              <button className="zoom-reset-btn" onClick={zoomA.reset}>
+                拡大リセット
+              </button>
+            ) : null}
           </div>
           <div className="local-timeline">
             <input
@@ -299,16 +322,26 @@ export function CompareSpike() {
             <span>{fileB ? `${fileB.name} / ${fileB.sizeMb}MB` : "動画未選択"}</span>
             <span>{p.durationB ? `${fmt(p.durationB)}s` : "duration --"}</span>
           </div>
-          <div className="video-frame">
-            <video
-              ref={p.videoBRef}
-              src={urlB ?? undefined}
-              playsInline
-              muted
-              preload="auto"
-              onLoadedMetadata={onLoadedMetadata("B")}
-            />
-            {pose.enabled ? <canvas ref={pose.canvasBRef} className="pose-canvas" /> : null}
+          <div className="video-frame" ref={zoomB.containerRef}>
+            <div
+              className="video-zoom-layer"
+              style={{ transform: `translate(${zoomB.x}px, ${zoomB.y}px) scale(${zoomB.scale})` }}
+            >
+              <video
+                ref={p.videoBRef}
+                src={urlB ?? undefined}
+                playsInline
+                muted
+                preload="auto"
+                onLoadedMetadata={onLoadedMetadata("B")}
+              />
+              {pose.enabled ? <canvas ref={pose.canvasBRef} className="pose-canvas" /> : null}
+            </div>
+            {zoomB.isZoomed ? (
+              <button className="zoom-reset-btn" onClick={zoomB.reset}>
+                拡大リセット
+              </button>
+            ) : null}
           </div>
           <div className="local-timeline">
             <input
@@ -431,6 +464,8 @@ export function CompareSpike() {
         <strong>{p.supportsRVFC ? "requestVideoFrameCallback 対応" : "近似 (rAF)"}</strong>
         {" "}
         — フレーム厳密ではなく 1/fps 単位の近似です (F-23)。
+        {" "}
+        各動画はピンチで拡大縮小、ドラッグで位置調整、ダブルタップでリセットできます。
       </p>
 
       {toast ? <div className="toast">{toast}</div> : null}

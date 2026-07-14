@@ -34,6 +34,16 @@ export interface VideoMetaInput {
 
 export type VideoMetaPatch = Partial<Pick<VideoRecord, "name" | "tag" | "memo">>;
 
+/** Per-video zoom/pan (pinch + drag), saved alongside the alignment mark so
+ * re-opening a pair looks the same as when it was left (F-52). */
+export interface ViewTransform {
+  scale: number; // 1 = no zoom
+  x: number; // screen-pixel pan offset
+  y: number;
+}
+
+export const DEFAULT_VIEW_TRANSFORM: ViewTransform = { scale: 1, x: 0, y: 0 };
+
 /** A saved compare session (F-52): which two library videos were compared and
  * where their alignment marks were. One session per ordered (A, B) pair. */
 export interface SessionRecord {
@@ -42,6 +52,8 @@ export interface SessionRecord {
   videoIdB: string;
   markA: number; // seconds
   markB: number; // seconds
+  viewA: ViewTransform;
+  viewB: ViewTransform;
   updatedAt: number; // epoch ms
 }
 
@@ -50,6 +62,8 @@ export interface SessionInput {
   videoIdB: string;
   markA: number;
   markB: number;
+  viewA: ViewTransform;
+  viewB: ViewTransform;
 }
 
 export interface VideoStorage {

@@ -1,3 +1,4 @@
+import { DEFAULT_VIEW_TRANSFORM } from "./types";
 import type {
   SessionInput,
   SessionRecord,
@@ -187,6 +188,8 @@ export class IndexedDbStorage implements VideoStorage {
       videoIdB: input.videoIdB,
       markA: input.markA,
       markB: input.markB,
+      viewA: input.viewA,
+      viewB: input.viewB,
       updatedAt: Date.now(),
     };
     const tx = db.transaction(SESSIONS, "readwrite");
@@ -203,6 +206,12 @@ export class IndexedDbStorage implements VideoStorage {
       >,
     );
     await txDone(tx);
-    return found ?? null;
+    if (!found) return null;
+    // Sessions saved before zoom/pan existed have no viewA/viewB; default them.
+    return {
+      ...found,
+      viewA: found.viewA ?? DEFAULT_VIEW_TRANSFORM,
+      viewB: found.viewB ?? DEFAULT_VIEW_TRANSFORM,
+    };
   }
 }

@@ -144,6 +144,18 @@ select {
 .video-frame {
   position: relative;
   min-width: 0;
+  overflow: hidden;
+  /* Pinch/drag is handled entirely by useZoomPan's own pointer listeners;
+     without this, iOS Safari's native page pinch-zoom/scroll fights it. */
+  touch-action: none;
+}
+
+/* Zoom/pan (pinch + drag, saved per pair with the alignment mark). Video and
+   pose canvas move together since both live inside this transformed layer. */
+.video-zoom-layer {
+  width: 100%;
+  height: 100%;
+  transform-origin: center center;
 }
 
 .video-frame video {
@@ -159,6 +171,17 @@ select {
   height: 100%;
   object-fit: contain;
   pointer-events: none;
+}
+
+.zoom-reset-btn {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 1;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid var(--line);
 }
 
 .pose-toggle input[type="checkbox"] {
